@@ -284,11 +284,11 @@ public class SigningService {
 									canvas = stamper.getOverContent(p);
 									// adding some lines to the left
 									ColumnText.showTextAligned(canvas, Element.ALIGN_CENTER,
-										new Phrase("Assinado electronicamente por: "+ AuthenticationUtil.getRunAsUser() + " | " + df.format(new Date())),
+										new Phrase("Documento Assinado Digitalmente em https://www.cedsif.gov.mz/sgd/"),
 										x - 18, y, 90);
-									// ColumnText.showTextAligned(canvas, Element.ALIGN_CENTER,
-									// 	new Phrase("This is some more text added to the left of the page"),
-									// 	x - 1, y, 90);
+									 ColumnText.showTextAligned(canvas, Element.ALIGN_CENTER,
+									 	new Phrase("Assinado por " + AuthenticationUtil.getRunAsUser() + " aos " + df.format(new Date())),
+									 	x - 1, y, 90);
 
 								}
 					

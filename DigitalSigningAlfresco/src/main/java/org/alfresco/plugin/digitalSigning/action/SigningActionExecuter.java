@@ -151,8 +151,8 @@ public class SigningActionExecuter extends ActionExecuterAbstractBase {
 		if (keyPassword != null) {
 			signingDTO.setKeyPassword(keyPassword);
 		} else {
-			log.error("key-password parameter is required.");
-			throw new AlfrescoRuntimeException("key-password parameter is required.");
+			log.error("Insira o pin da Assinatura Digital.");
+			throw new AlfrescoRuntimeException("Insira o pin da Assinatura Digital.");
 		}
 		if (destinationFolder != null) {
 			signingDTO.setDestinationFolder(destinationFolder);
