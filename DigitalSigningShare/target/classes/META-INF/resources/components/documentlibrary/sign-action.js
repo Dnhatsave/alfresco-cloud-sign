@@ -180,6 +180,8 @@
 			    		   text: successMessage,
 			    		   displayTime: 10
 			    	   });
+			    	   //Refresh automatico
+			    	   window.location.reload(true);
 		    	   } else {
 		    		   var errorMessage = "message.sign.error";
 			    	   if (nodesRef.length > 1) {

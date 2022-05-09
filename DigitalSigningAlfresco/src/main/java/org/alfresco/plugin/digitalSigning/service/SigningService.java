@@ -30,6 +30,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
+import javax.imageio.ImageIO;
+import com.itextpdf.text.Image;
 
 
 import org.alfresco.error.AlfrescoRuntimeException;
@@ -57,6 +60,9 @@ import org.alfresco.service.cmr.repository.ContentWriter;
 import org.alfresco.service.cmr.repository.NodeRef;
 import org.alfresco.service.cmr.repository.NodeService;
 import org.alfresco.service.cmr.repository.TransformationOptions;
+import org.alfresco.service.cmr.security.PersonService;
+import org.alfresco.service.ServiceRegistry;
+
 import org.alfresco.service.namespace.QName;
 import org.alfresco.util.TempFileProvider;
 import org.apache.commons.io.FileUtils;
@@ -115,6 +121,12 @@ public class SigningService {
 	 * Node service.
 	 */
 	private NodeService nodeService;
+
+
+	/**
+	 * Node service.
+	 */
+	private PersonService personService;
 	
 	/**
 	 * Dictionary service.
@@ -140,6 +152,16 @@ public class SigningService {
 	 * Metadata encryptor.
 	 */
 	private MetadataEncryptor metadataEncryptor;
+
+	/**
+	 * Alfresco ServiceRegistry.
+	 */
+	private ServiceRegistry serviceRegistry;
+
+	private static Log logger = LogFactory.getLog(SigningService.class);
+
+
+	
 	
 	/**
 	 * PADES Signing.
@@ -159,6 +181,15 @@ public class SigningService {
 		
 		File fileConverted = null;
 		File tempDir = null;
+		String pages = "";
+
+		Map<QName, Serializable> props = nodeService.getProperties(nodeRefToSign);
+		String qrCodeString = new String();
+   
+		for (Map.Entry<QName,Serializable> entry : props.entrySet()){ 
+            qrCodeString += entry.getKey().getLocalName()+" : "+entry.getValue()+"\n";
+		}
+	    
 		try {
 			ContentReader fileToSignContentReader = getReader(nodeRefToSign);
 			
@@ -202,6 +233,7 @@ public class SigningService {
 
 				PdfReader reader = null;
 				if (nodeRefToSign != null) {
+				
 			        tempDir = new File(alfTempDir.getPath() + File.separatorChar + nodeRefToSign.getId());
 			        if (tempDir != null) {
 				        tempDir.mkdir();
@@ -237,8 +269,26 @@ public class SigningService {
 								PdfContentByte canvas;
         						Rectangle pageSize;
 								float x, y;
+								
+								int numPages = reader.getNumberOfPages();
+							
+								// String firstName ="";
+								// String lastName ="";
+								// //Nome Com;pleto
+								// try{
+
+								// 	NodeRef personRef = personService.getPerson(AuthenticationUtil.getRunAsUser());
+								// 	 firstName = nodeService.getProperty(personRef, ContentModel.PROP_FIRSTNAME).toString();
+    							//       lastName = nodeService.getProperty(personRef, ContentModel.PROP_LASTNAME).toString();
+
+
+								// }catch(Exception e){
+								// 	System.out.println("Occoreu um erro aqui " + e);
+								// }
+
+   								 
 								for (int p = 1; p <= reader.getNumberOfPages(); p++) {	
-									pageSize = reader.getPageSize(p);
+									pageSize = reader.getPageSize(p);	
 					
 									// left of the page
 									x = pageSize.getRight();
@@ -249,16 +299,26 @@ public class SigningService {
 									// adding some lines to the left
 									ColumnText.showTextAligned(canvas, Element.ALIGN_CENTER,
 										new Phrase("Documento Assinado Digitalmente em https://www.cedsif.gov.mz/sgd/"),
-										x - 18, y, 90);
-									 ColumnText.showTextAligned(canvas, Element.ALIGN_CENTER,
+										x - 25, y, 90);
+									ColumnText.showTextAligned(canvas, Element.ALIGN_CENTER,
 									 	new Phrase("Assinado por " + AuthenticationUtil.getRunAsUser() + " aos " + df.format(new Date())),
-									 	x - 1, y, 90);
+									 	x - 7, y, 90);
+
+										 // Geracao Automatica do QRCode
+
+										PdfContentByte over = stamper.getOverContent(numPages);
+										BarcodeQRCode barcodeQRCode = new BarcodeQRCode(qrCodeString, 1, 1, null);
+										Image qrcodeImage = barcodeQRCode.getImage();
+										qrcodeImage.setAbsolutePosition(480,70);
+										over.addImage(qrcodeImage);
+										//System.out.println("qrCodeString = " + qrCodeString);
 
 								}
 					
 								stamper.close();
 
-								NodeRef destinationNode = null;
+
+									NodeRef destinationNode = null;
 									NodeRef originalDoc = null;
 									boolean addAsNewVersion = false;
 									if (signingDTO.getDestinationFolder() == null) {
@@ -743,6 +803,58 @@ public class SigningService {
         return destinationNode;
     }
 
+
+    /**
+	 * Parses the list of pages or page ranges to delete and returns a list of page numbers 
+	 * 
+	 * @param list
+	 * @return
+	 */
+	private List<Integer> parsePageList(String list)
+	{
+		List<Integer> pages = new ArrayList<Integer>();
+		String[] tokens = list.split(",");
+		for(String token : tokens)
+		{
+			//parse each, if one is not an int, log it but keep going
+			try 
+			{
+				pages.add(Integer.parseInt(token));
+			}
+			catch(NumberFormatException nfe)
+			{
+				logger.warn("Page list contains non-numeric values");
+			}
+		}
+		return pages;
+	}
+
+	/**
+     * Determines whether or not a watermark should be applied to a given page
+     * 
+     * @param pages
+     * @param current
+     * @param numpages
+     * @return
+     */
+    private boolean checkPage(String pages, int current, int numpages)
+    {
+
+    	
+        boolean markPage = false;
+
+        	// if we get here, a scheme wasn't selected, so we can treat this like a page list
+        	List<Integer> pageList = parsePageList(pages);
+        	if(pageList.contains(current))
+        	{
+        		markPage = true;
+        	}
+        
+
+        return markPage;
+    }
+
+
     private File convertPdfToPdfA(final InputStream source) throws IOException, DocumentException {
         File tempFile = null;       
         File pdfAFile = null;
@@ -951,6 +1063,15 @@ public class SigningService {
 	public final void setMetadataEncryptor(MetadataEncryptor metadataEncryptor) {
 		this.metadataEncryptor = metadataEncryptor;
 	}
+
+	 /**
+     * @param serviceRegistry
+     */
+    public void setServiceRegistry(ServiceRegistry serviceRegistry)
+    {
+        this.serviceRegistry = serviceRegistry;
+    }
+    
 	
 
 	}
